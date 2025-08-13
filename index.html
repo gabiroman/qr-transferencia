@@ -10,9 +10,24 @@
     <!-- Tailwind (opcional, solo para estilos rápidos) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Librería de QR: qrcodejs -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
-        integrity="sha512-M1ym3Qv7i7KKGhvgiwYSh9iYhG8bV+qCugr3ndnFQ+6aS5pMH1dX3TI4K0wO8JwqH3icZr3x1bVf+2pq8G/0A=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // Fallback: si no carga desde cdnjs, probar jsDelivr
+        (function () {
+            function load(src, cb) {
+                var s = document.createElement('script');
+                s.src = src; s.onload = cb; s.onerror = function () { console.warn('Fallo al cargar', src) };
+                document.head.appendChild(s);
+            }
+            window.addEventListener('DOMContentLoaded', function () {
+                if (!window.QRCode) {
+                    load('https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js', function () {
+                        console.log('qrcodejs cargado desde jsDelivr');
+                    });
+                }
+            });
+        })();
+    </script>
     <style>
         /* Modo impresión: mostrar solo el QR y datos mínimos */
         @media print {
@@ -189,7 +204,13 @@
             });
         }
 
-        function mostrarResultado({ url, valor, label }) {
+        async function mostrarResultado({ url, valor, label }) {
+            const listo = await ensureQRCodeReady();
+            if (!listo) {
+                alert('No se pudo cargar la librería de QR. Verificá tu conexión o recargá la página.');
+                return;
+            }
+
             const resultado = $('#resultado');
             resultado.classList.remove('hidden');
             $('#res-url').textContent = url;
@@ -237,6 +258,18 @@
             } catch (e) {
                 return false;
             }
+        }
+
+        // Garantiza que la librería QRCode esté disponible; si no, intenta cargar un fallback
+        function ensureQRCodeReady() {
+            return new Promise((resolve) => {
+                if (window.QRCode) return resolve(true);
+                var s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js';
+                s.onload = () => resolve(!!window.QRCode);
+                s.onerror = () => resolve(false);
+                document.head.appendChild(s);
+            });
         }
 
         function renderCopiar(usp) {
@@ -290,9 +323,9 @@
     </script>
 
     <footer class="max-w-3xl mx-auto px-4 py-8 text-xs text-slate-500">
-        <p>Consejos: serví este archivo por <span class="font-medium">HTTPS</span> para habilitar la API del
+        <!-- <p>Consejos: serví este archivo por <span class="font-medium">HTTPS</span> para habilitar la API del
             portapapeles en la mayoría de navegadores móviles. Probado con Chrome/Android y Safari/iOS (requiere toque
-            del usuario en iOS).</p>
+            del usuario en iOS).</p> -->
     </footer>
 </body>
 
