@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QR de Transferencia — Alias/CBU</title>
+    <meta name="description"
+        content="Generador de QR para compartir Alias/CBU/CVU y página de copia rápida al escanear." />
+    <!-- Tailwind (opcional, solo para estilos rápidos) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librería de QR: qrcodejs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+        integrity="sha512-M1ym3Qv7i7KKGhvgiwYSh9iYhG8bV+qCugr3ndnFQ+6aS5pMH1dX3TI4K0wO8JwqH3icZr3x1bVf+2pq8G/0A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        /* Modo impresión: mostrar solo el QR y datos mínimos */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            #printable,
+            #printable * {
+                visibility: visible;
+            }
+
+            #printable {
+                position: fixed;
+                inset: 0;
+                margin: auto;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-slate-50 text-slate-900">
+    <header class="border-b bg-white">
+        <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 class="text-xl font-semibold">QR de Transferencia (Alias/CBU)</h1>
+            <a href="#/crear" class="text-sm text-blue-600 hover:underline">Crear nuevo</a>
+        </div>
+    </header>
+
+    <main id="app" class="max-w-3xl mx-auto px-4 py-6"></main>
+
+    <template id="tpl-crear">
+        <section class="bg-white rounded-2xl shadow p-6 grid gap-6">
+            <header>
+                <h2 class="text-lg font-semibold">Generar QR para tu Alias/CBU</h2>
+                <p class="text-sm text-slate-600 mt-1">El QR abrirá una página con tu Alias/CBU listo para <span
+                        class="font-medium">copiar</span> en el celular del comprador.</p>
+            </header>
+
+            <form id="form-crear" class="grid gap-4">
+                <div class="grid gap-1">
+                    <label for="valor" class="text-sm font-medium">Alias / CBU / CVU <span
+                            class="text-rose-600">*</span></label>
+                    <input id="valor" required class="border rounded-xl px-3 py-2 outline-none focus:ring w-full"
+                        placeholder="ej: mi.alias.banco o 0000003100000000000000" />
+                    <p id="ayuda-valor" class="text-xs text-slate-500">Se validará formato básico. Tu alias/CBU quedará
+                        embebido en el QR.</p>
+                </div>
+                <div class="grid gap-1 md:grid-cols-2 md:gap-4">
+                    <div class="grid gap-1">
+                        <label for="label" class="text-sm font-medium">Nombre del comercio (opcional)</label>
+                        <input id="label" class="border rounded-xl px-3 py-2 outline-none focus:ring w-full"
+                            placeholder="Ej: Kiosco Los Amigos" />
+                    </div>
+                    <div class="grid gap-1">
+                        <label for="monto" class="text-sm font-medium">Monto sugerido (opcional)</label>
+                        <input id="monto" class="border rounded-xl px-3 py-2 outline-none focus:ring w-full"
+                            placeholder="Ej: 2500.00" inputmode="decimal" />
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-2" type="submit">Generar
+                        QR</button>
+                    <p id="msg-error" class="text-sm text-rose-600 hidden"></p>
+                </div>
+            </form>
+
+            <section id="resultado" class="hidden grid gap-4">
+                <div class="grid md:grid-cols-[260px,1fr] gap-6 items-center">
+                    <div id="printable" class="grid gap-2 justify-items-center">
+                        <div id="qrcode" class="bg-white p-3 rounded-xl border"></div>
+                        <div class="text-center">
+                            <div class="text-sm font-medium" id="res-label"></div>
+                            <div class="text-xs text-slate-600" id="res-valor"></div>
+                        </div>
+                    </div>
+                    <div class="grid gap-3">
+                        <div class="text-sm bg-slate-100 rounded-xl p-3 break-all"><span class="font-medium">URL del
+                                QR:</span> <span id="res-url"></span></div>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="btn-descargar" class="bg-slate-900 text-white rounded-xl px-4 py-2">Descargar
+                                PNG</button>
+                            <button id="btn-imprimir" class="bg-slate-200 rounded-xl px-4 py-2">Imprimir</button>
+                            <button id="btn-copiar-url" class="bg-slate-200 rounded-xl px-4 py-2">Copiar URL</button>
+                        </div>
+                        <p class="text-xs text-slate-500">Sugerencia: imprimí el QR y pegalo cerca de la caja. Al
+                            escanear, la persona podrá copiar el alias/CBU al portapapeles con un toque.</p>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </template>
+
+    <template id="tpl-copia">
+        <section class="bg-white rounded-2xl shadow p-6 grid gap-6 text-center">
+            <header class="grid gap-2">
+                <p class="text-xs text-slate-500">Página rápida de copia</p>
+                <h2 class="text-2xl font-semibold">Alias/CBU del comercio</h2>
+                <p id="copia-label" class="text-sm text-slate-600"></p>
+            </header>
+
+            <div class="grid gap-3">
+                <div class="text-xl font-mono tracking-wide select-all break-all" id="copia-valor"></div>
+                <div id="copia-monto" class="text-sm text-slate-600"></div>
+            </div>
+
+            <div class="grid gap-2">
+                <button id="btn-copiar"
+                    class="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-6 py-4 text-lg">Copiar al
+                    portapapeles</button>
+                <p id="estado-copia" class="text-sm"></p>
+                <p class="text-xs text-slate-500">Si tu navegador bloquea la copia automática, mantené presionado sobre
+                    el valor para copiarlo.</p>
+            </div>
+
+            <footer class="text-xs text-slate-500">
+                <a class="text-blue-600 hover:underline" href="#/crear">Crear tu propio QR</a>
+            </footer>
+        </section>
+    </template>
+
+    <script>
+        // Utilidades básicas
+        const $ = (sel, ctx = document) => ctx.querySelector(sel);
+        const paramsFromHash = () => {
+            // hash estilo: #/copy?value=...&label=...
+            const [path, search] = (location.hash || '#/crear').split('?');
+            const usp = new URLSearchParams(search || '');
+            return { path, usp };
+        };
+
+        function validarValor(valor) {
+            const v = valor.trim();
+            // CBU/CVU: 22 dígitos; Alias: letras/números/puntos/de guiones bajos (flexible)
+            const es22Digitos = /^\d{22}$/.test(v);
+            const esAlias = /^[A-Za-z0-9._-]{4,30}$/.test(v); // regla laxa
+            return es22Digitos || esAlias;
+        }
+
+        function buildCopyUrl({ valor, label, monto }) {
+            const base = location.origin + location.pathname;
+            const usp = new URLSearchParams();
+            usp.set('value', valor.trim());
+            if (label && label.trim()) usp.set('label', label.trim());
+            if (monto && monto.trim()) usp.set('amount', monto.trim());
+            return `${base}#/copiar?${usp.toString()}`;
+        }
+
+        function renderCrear() {
+            const app = $('#app');
+            app.innerHTML = $('#tpl-crear').innerHTML;
+
+            const form = $('#form-crear');
+            const inputValor = $('#valor');
+            const inputLabel = $('#label');
+            const inputMonto = $('#monto');
+            const msgError = $('#msg-error');
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                msgError.classList.add('hidden');
+                const valor = inputValor.value;
+                const label = inputLabel.value;
+                const monto = inputMonto.value;
+                if (!validarValor(valor)) {
+                    msgError.textContent = 'Formato inválido. Ingresá un CBU/CVU de 22 dígitos o un Alias válido (letras, números, punto, guión).';
+                    msgError.classList.remove('hidden');
+                    return;
+                }
+                const url = buildCopyUrl({ valor, label, monto });
+                mostrarResultado({ url, valor, label });
+            });
+        }
+
+        function mostrarResultado({ url, valor, label }) {
+            const resultado = $('#resultado');
+            resultado.classList.remove('hidden');
+            $('#res-url').textContent = url;
+            $('#res-label').textContent = label ? label : '';
+            $('#res-valor').textContent = valor;
+
+            const qrEl = $('#qrcode');
+            qrEl.innerHTML = '';
+            new QRCode(qrEl, {
+                text: url,
+                width: 240,
+                height: 240,
+                correctLevel: QRCode.CorrectLevel.M,
+            });
+
+            // Descargar PNG
+            $('#btn-descargar').onclick = () => {
+                const canvas = qrEl.querySelector('canvas');
+                if (!canvas) return;
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/png');
+                a.download = 'qr-transferencia.png';
+                a.click();
+            };
+
+            // Imprimir
+            $('#btn-imprimir').onclick = () => window.print();
+
+            // Copiar URL
+            $('#btn-copiar-url').onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(url);
+                    alert('URL copiada al portapapeles');
+                } catch (e) {
+                    prompt('Copiá manualmente la URL y guardala', url);
+                }
+            };
+        }
+
+        async function intentarCopiaAutomatica(texto) {
+            // Algunos navegadores permiten copiar tras gesto del usuario; en carga directa suele bloquear.
+            try {
+                await navigator.clipboard.writeText(texto);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function renderCopiar(usp) {
+            const app = $('#app');
+            app.innerHTML = $('#tpl-copia').innerHTML;
+
+            const valor = usp.get('value') || '';
+            const label = usp.get('label') || '';
+            const amount = usp.get('amount') || '';
+
+            $('#copia-valor').textContent = valor;
+            $('#copia-label').textContent = label ? `Comercio: ${label}` : '';
+            $('#copia-monto').textContent = amount ? `Monto sugerido: $${amount}` : '';
+
+            const estado = $('#estado-copia');
+            const btn = $('#btn-copiar');
+
+            const actualizarEstado = (msg, ok = false) => {
+                estado.textContent = msg;
+                estado.className = `text-sm ${ok ? 'text-green-700' : 'text-slate-600'}`;
+            };
+
+            // Intento de copia "silenciosa" tras primer interacción del usuario
+            const copyHandler = async () => {
+                const ok = await intentarCopiaAutomatica(valor);
+                if (ok) actualizarEstado('Alias/CBU copiado. Podés pegarlo en tu app de pagos.', true);
+                else actualizarEstado('Tocá "Copiar al portapapeles" si tu navegador no permite copia automática.');
+            };
+
+            // 1) Un toque en el botón copia
+            btn.addEventListener('click', async () => {
+                const ok = await intentarCopiaAutomatica(valor);
+                if (ok) actualizarEstado('Alias/CBU copiado. Podés pegarlo en tu app de pagos.', true);
+                else actualizarEstado('No se pudo copiar automáticamente. Mantené presionado para seleccionar y copiar.');
+            });
+
+            // 2) Primer interacción en la página intenta copiar (mejora UX en algunos webviews)
+            const once = { once: true };
+            window.addEventListener('touchstart', copyHandler, once);
+            window.addEventListener('click', copyHandler, once);
+        }
+
+        function router() {
+            const { path, usp } = paramsFromHash();
+            if (path.startsWith('#/copiar')) renderCopiar(usp);
+            else renderCrear();
+        }
+
+        window.addEventListener('hashchange', router);
+        window.addEventListener('DOMContentLoaded', router);
+    </script>
+
+    <footer class="max-w-3xl mx-auto px-4 py-8 text-xs text-slate-500">
+        <p>Consejos: serví este archivo por <span class="font-medium">HTTPS</span> para habilitar la API del
+            portapapeles en la mayoría de navegadores móviles. Probado con Chrome/Android y Safari/iOS (requiere toque
+            del usuario en iOS).</p>
+    </footer>
+</body>
+
+</html>
